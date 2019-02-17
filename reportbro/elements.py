@@ -10,6 +10,7 @@ import decimal
 import os
 import re
 import tempfile
+import sys
 
 from .barcode128 import code128_image
 from .context import Context
@@ -152,7 +153,13 @@ class DocElement(DocElementBase):
 class ImageElement(DocElement):
     def __init__(self, report, data):
         DocElement.__init__(self, report, data)
+        self.eval = bool(data.get('eval'))
         self.source = data.get('source', '')
+        self.content = data.get('content', '')
+        self.isContent = False
+        if self.source == '':
+            self.isContent = True
+        
         self.image = data.get('image', '')
         self.image_filename = data.get('imageFilename', '')
         self.horizontal_alignment = HorizontalAlignment[data.get('horizontalAlignment')]
@@ -167,6 +174,20 @@ class ImageElement(DocElement):
         self.image_key = None
         self.image_type = None
         self.image_fp = None
+        self.total_height = 0
+        self.image_height = 0
+    
+    def set_height(self, height):
+        self.height = height
+        self.space_top = 0
+        self.space_bottom = 0
+        if self.image_height > 0:
+            total_height = self.image_height
+        else:
+            total_height = 0
+        if total_height < height:
+            remaining_space = height - total_height
+        self.total_height = total_height
 
     def prepare(self, ctx, pdf_doc, only_verify):
         if self.image_key:
@@ -201,7 +222,14 @@ class ImageElement(DocElement):
                         Error('errorMsgMissingParameter', object_id=self.id, field='source'))
                 self.image_key = self.source
                 is_url = True
-
+        
+        if self.isContent:
+            source_parameter = ctx.get_parameter(Context.strip_parameter_name(self.content))
+            if source_parameter:
+                img_data, parameter_exists = ctx.get_data(source_parameter.name)
+                if parameter_exists:
+                    img_data_b64 = img_data
+            
         if img_data_b64 is None and not is_url and self.image_fp is None:
             if self.image_filename and self.image:
                 # static image base64 encoded within image element
@@ -259,7 +287,7 @@ class ImageElement(DocElement):
                 # horizontal and vertical alignment of image within given width and height
                 # by keeping original image aspect ratio
                 offset_x = offset_y = 0
-                image_width, image_height = image_info['w'], image_info['h']
+                image_width, image_height = 100, 100 # image_info['w'], image_info['h']
                 if image_width <= self.width and image_height <= self.height:
                     image_display_width, image_display_height = image_width, image_height
                 else:
@@ -785,6 +813,10 @@ class TableTextElement(TextElement):
     def __init__(self, report, data):
         TextElement.__init__(self, report, data)
 
+class TableImageElement(ImageElement):
+    def __init__(self, report, data):
+        ImageElement.__init__(self, report, data)
+
 
 class TableRow(object):
     def __init__(self, report, table_band, columns, ctx, prev_row=None):
@@ -792,6 +824,13 @@ class TableRow(object):
         self.column_data = []
         for column in columns:
             column_element = TableTextElement(report, table_band.column_data[column])
+            
+            if column_element.content and not column_element.eval and\
+                    Context.is_parameter_name(column_element.content):
+                column_data_parameter = ctx.get_parameter(Context.strip_parameter_name(column_element.content))
+                if column_data_parameter and column_data_parameter.type == ParameterType.image:
+                    column_element = TableImageElement(report, table_band.column_data[column])
+            
             self.column_data.append(column_element)
 
             if table_band.column_data[column].get('simple_array') != False:
