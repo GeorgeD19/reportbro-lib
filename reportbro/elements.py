@@ -176,6 +176,7 @@ class ImageElement(DocElement):
         self.image_fp = None
         self.total_height = 0
         self.image_height = 0
+        self.used_style = TextStyle(data)
     
     def set_height(self, height):
         self.height = height
