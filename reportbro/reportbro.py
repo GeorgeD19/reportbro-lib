@@ -27,6 +27,7 @@ from .enums import *
 from .structs import Parameter, TextStyle
 from .utils import get_int_value, PY3
 
+import dateutil.parser as parser
 
 try:
     basestring  # For Python 2, str and unicode
@@ -505,12 +506,15 @@ class Report:
                             format = '%Y-%m-%d %H:%M:%S'
                         value = datetime.datetime.strptime(value, format)
                     except (ValueError, TypeError):
-                        if parent_id and is_test_data:
-                            self.errors.append(Error('errorMsgInvalidTestData', object_id=parent_id, field='test_data'))
-                            self.errors.append(Error('errorMsgInvalidDate', object_id=parameter.id, field='type'))
-                        else:
-                            self.errors.append(Error('errorMsgInvalidDate',
-                                                     object_id=parameter.id, field=error_field, context=parameter.name))
+                        try:
+                            value = parser.parse(value)
+                        except (ValueError, TypeError):
+                            if parent_id and is_test_data:
+                                self.errors.append(Error('errorMsgInvalidTestData', object_id=parent_id, field='test_data'))
+                                self.errors.append(Error('errorMsgInvalidDate', object_id=parameter.id, field='type'))
+                            else:
+                                self.errors.append(Error('errorMsgInvalidDate',
+                                                        object_id=parameter.id, field=error_field, context=parameter.name))
             elif isinstance(value, datetime.date):
                 if not isinstance(value, datetime.datetime):
                     value = datetime.datetime(value.year, value.month, value.day)
