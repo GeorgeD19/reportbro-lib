@@ -11,6 +11,7 @@ import os
 import re
 import tempfile
 import sys
+import uuid
 
 from .barcode128 import code128_image
 from .context import Context
@@ -258,7 +259,8 @@ class ImageElement(DocElement):
                 raise ReportBroError(
                     Error('errorMsgUnsupportedImageType', object_id=self.id, field='source'))
             if not self.image_key:
-                self.image_key = 'image_' + str(self.id) + '.' + self.image_type
+                # self.image_key = 'image_' + str(self.id) + '.' + self.image_type
+                self.image_key = uuid.uuid4().hex[:6].upper() + '.' + self.image_type
         self.image = None
 
         if self.link:
